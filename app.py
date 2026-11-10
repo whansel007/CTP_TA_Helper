@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import secrets
+import shutil
 import tempfile
 import zipfile
 from flask import Flask, render_template, request, send_file, session, redirect, url_for, flash
@@ -16,11 +17,15 @@ SETTINGS=json.loads((BASE/'settings.json').read_text(encoding='utf-8'))
 LABS=SETTINGS['labs']
 # Results stay in process memory only; restart clears them.
 REPORTS={}
+WORKSPACE=BASE/'workspace'
 
 @app.get('/')
 def index():
     report=REPORTS.get(session.get('report_id'))
-    return render_template('index.html',labs={k:list(v['questions']) for k,v in LABS.items()},report=report)
+    WORKSPACE.mkdir(exist_ok=True)
+    return render_template('index.html',labs={k:list(v['questions']) for k,v in LABS.items()},report=report,
+                           workspace_count=sum(1 for item in WORKSPACE.iterdir()
+                                               if item.is_dir() and not item.is_symlink()))
 
 @app.post('/grade')
 def grade():
@@ -38,11 +43,22 @@ def grade():
     solutions=BASE/settings['solutions']
     if not starter.exists() or not solutions.exists():
         flash('Starter and solution files are missing.');return redirect(url_for('index'))
-    rows=grader.grade_all(uploads,selected,starter,solutions,settings)
+    rows=grader.grade_all(uploads,selected,starter,solutions,settings,WORKSPACE)
     rows.sort(key=lambda row: (row['student'].casefold(), row['filename'].casefold()))
     key=secrets.token_urlsafe(16)
     REPORTS.clear();REPORTS[key]={'rows':rows,'selected':selected,'lab':lab}
     session['report_id']=key
+    return redirect(url_for('index'))
+
+@app.post('/empty-workspace')
+def empty_workspace():
+    WORKSPACE.mkdir(exist_ok=True)
+    for item in WORKSPACE.iterdir():
+        if item.is_dir() and not item.is_symlink():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+    flash('Workspace emptied.')
     return redirect(url_for('index'))
 
 @app.get('/export')

@@ -250,23 +250,52 @@ def grade_question(root, question, starter, solutions, spec, default_timeout=4):
                 'expected': str(expected)[:500], 'actual': str(actual)[:500]}
 
 
-def grade_all(uploads, selected, starter, solutions, settings):
+def workspace_folder_name(student):
+    """Make a student label safe to use as a directory name on Windows."""
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', student).strip(' .')
+    if not name or name in {'.', '..'}:
+        name = 'untitled'
+    if name.split('.')[0].upper() in {
+            'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)),
+            *(f'LPT{i}' for i in range(1, 10))}:
+        name = f'student_{name}'
+    return name[:100].rstrip(' .') or 'untitled'
+
+
+def create_student_workspace(workspace, student):
+    """Create a unique persistent folder for one uploaded student ZIP."""
+    base_name = workspace_folder_name(student)
+    candidate = workspace / base_name
+    suffix = 2
+    while True:
+        try:
+            candidate.mkdir()
+            return candidate
+        except FileExistsError:
+            candidate = workspace / f'{base_name} ({suffix})'
+            suffix += 1
+
+
+def grade_all(uploads, selected, starter, solutions, settings, workspace):
+    workspace = Path(workspace)
+    workspace.mkdir(parents=True, exist_ok=True)
     results = []
     for filename, data in uploads:
-        row = {'student': extract_student_name(filename), 'filename': filename,
+        student_name = extract_student_name(filename)
+        row = {'student': student_name, 'filename': filename,
                'questions': {}, 'total': 0, 'max': len(selected)}
         try:
-            with tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
-                unpack_zip(data, root)
-                for question in selected:
-                    spec = {key: settings[key] for key in ('starter_extensions', 'starter_names')
-                            if key in settings}
-                    spec.update(settings['questions'][question])
-                    item = grade_question(root, question, starter, solutions,
-                                          spec, settings.get('timeout', 4))
-                    row['questions'][question] = item
-                    row['total'] += item['score']
+            root = create_student_workspace(workspace, student_name)
+            unpack_zip(data, root)
+            row['workspace_folder'] = root.name
+            for question in selected:
+                spec = {key: settings[key] for key in ('starter_extensions', 'starter_names')
+                        if key in settings}
+                spec.update(settings['questions'][question])
+                item = grade_question(root, question, starter, solutions,
+                                      spec, settings.get('timeout', 4))
+                row['questions'][question] = item
+                row['total'] += item['score']
         except Exception as exc:
             for question in selected:
                 row['questions'][question] = {'status': 'Error', 'score': 0, 'detail': str(exc)[:250]}

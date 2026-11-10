@@ -11,6 +11,8 @@ python app.py
 
 Open http://127.0.0.1:5000 . Choose Lab 7 or Lab 8, upload student ZIP files, select question parts, grade, and export CSV.
 
+Uploaded ZIP contents are extracted to the `workspace/` folder in this project, with one folder per student. These folders remain there across grading runs and app restarts. Use **Empty workspace** on the site to delete the extracted student folders.
+
 ## Supported questions
 
 - Lab 7: Q1a, Q1b, Q2a, Q2b, Q2c, Q3, Q4a, Q4b, Q5a, Q5b, Q6, Q7.
@@ -30,5 +32,6 @@ Lab 8 Q6 uses the function `create_employee_dictionary` instead of the interacti
 - `grader.py`: shared grading engine for both labs
 - `settings.json`: lab resources, question lists, test cases, inputs, and comparison modes
 - `templates/index.html`: shared interface
+- `workspace/`: persistent extracted student submissions; cleared from the site with **Empty workspace**
 - `assets/lab7/starter` and `assets/lab7/solutions`: Lab 7 input files and reference implementations
 - `assets/lab8/starter` and `assets/lab8/solutions`: Lab 8 input files and reference implementations
